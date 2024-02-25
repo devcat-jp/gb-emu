@@ -16,12 +16,18 @@ fn main() {
     let output_settings = OutputSettingsBuilder::new().build();
     let mut window = Window::new("Debug", &output_settings);
 
-    let bootrom = Bootrom::new();
-    println!("boot {:x}!", bootrom.read(0x00));
+    let mut bootrom = Bootrom::new();
+    println!("boot_chk1 {:x}", bootrom.read(0x00));
+    println!("boot_chk2 {}", bootrom.is_active());
+    bootrom.set_active(false);
+    println!("boot_chk3 {}", bootrom.is_active());
+
 
     let mut hram = HRam::new();
     hram.write(0x00, 0x01);
-    println!("hram {:x}!", hram.read(0x00));
+    println!("hram {:x}", hram.read(0x00));
+
+
 
 
 
