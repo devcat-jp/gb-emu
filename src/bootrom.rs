@@ -1,6 +1,7 @@
 // ブート用ROM
 // ROMデータは下記のものを使用
 // https://github.com/take44444/Gameboy-free_bootrom
+#![allow(dead_code)]
 
 pub struct Bootrom {
     rom: Vec<u8>,           // u8の配列
@@ -171,9 +172,9 @@ impl Bootrom {
         self.active
     }
 
-    // 有効・無効の切り替え
-    pub fn set_active(&mut self, flag: bool) {
-        self.active = flag;
+    // 書き込み、0以外の場合はブートROMを無効に
+    pub fn write(&mut self, _: u16, val: u8) {
+        if val != 0 { self.active = false; }
     }
 
 }
