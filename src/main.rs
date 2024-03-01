@@ -1,9 +1,13 @@
 
 #![allow(dead_code)]
 
+mod cpu;
 mod hram;
 mod bootrom;
+mod registers;
 mod peripherals;
+
+use cpu::Cpu;
 use bootrom::Bootrom;
 use peripherals::Peripherals;
 
@@ -21,6 +25,7 @@ fn main() {
     let bootrom = Bootrom::new();
     let mut peripherals = Peripherals::new(bootrom);
 
+    /*
     // bootrom
     println!("boot_chk1 {:x}", peripherals.read(0x0000));
     peripherals.write(0xFF50, 1);
@@ -28,20 +33,12 @@ fn main() {
     // hram
     peripherals.write(0xFF80, 0xA2);
     println!("hram_chk1 {:x}", peripherals.read(0xFF80));
+    */
 
 
-    
-
-    //println!("boot_chk1 {:x}", bootrom.read(0x00));
-    //println!("boot_chk2 {}", bootrom.is_active());
-    //bootrom.set_active(false);
-    //println!("boot_chk3 {}", bootrom.is_active());
-
-
-    //let mut hram = HRam::new();
-    //hram.write(0x00, 0x01);
-    //println!("hram {:x}", hram.read(0x00));
-
+    // cpu
+    let mut cpu = Cpu::new();
+    cpu.emulate_cycle(&mut peripherals);
 
 
 

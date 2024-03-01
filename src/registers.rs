@@ -1,5 +1,8 @@
 // CPUレジスタ
+#![allow(dead_code)]
 
+
+#[derive(Default)]
 pub struct Registers {
     pub a: u8,
     pub b: u8,
@@ -61,19 +64,19 @@ impl Registers {
     // F（フラグレジスタ）の各ビットが立っているかを取得する
     // Z（7bit目）は演算結果が0の場合に1になる
     pub fn zf(&self) -> bool {
-        (self.z & 0b_1000_0000) > 0
+        (self.f & 0b_1000_0000) > 0
     }
     // N（6bit目）は減算命令の場合に1になる
     pub fn nf(&self) -> bool {
-        (self.z & 0b_0100_0000) > 0
+        (self.f & 0b_0100_0000) > 0
     }
     // H（5bit目）は3bit目で繰り上がり（下がり）が発生すると1になる
-    pub fn nf(&self) -> bool {
-        (self.z & 0b_0010_0000) > 0
+    pub fn hf(&self) -> bool {
+        (self.f & 0b_0010_0000) > 0
     }
     // C（4bit目）は7bit目で繰り上がり（下がり）が発生すると1になる
     pub fn cf(&self) -> bool {
-        (self.z & 0b_0001_0000) > 0
+        (self.f & 0b_0001_0000) > 0
     }
 
     // F（フラグレジスタ）をセットする
