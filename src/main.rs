@@ -38,8 +38,13 @@ fn main() {
 
     // cpu
     let mut cpu = Cpu::new();
-    cpu.emulate_cycle(&mut peripherals);
 
+    for i in 0..4 {
+        println!("---");
+        println!("M-cycle {:x}", i);
+        cpu.emulate_cycle(&mut peripherals); 
+    }  
+   
 
 
 

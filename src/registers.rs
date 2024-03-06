@@ -2,7 +2,7 @@
 #![allow(dead_code)]
 
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct Registers {
     pub a: u8,
     pub b: u8,
