@@ -35,11 +35,13 @@ pub enum Indirect {BC, DE, HL, CFF, HLD, HLI}
 #[derive(Clone, Copy)]
 pub enum Direct8 {D, DFF}
 #[derive(Clone, Copy)]
-pub enum Cloud {NZ, Z, NC, C}
+pub enum Cond {NZ, Z, NC, C}
 #[derive(Clone, Copy)]
 pub struct Imm8;
 #[derive(Clone, Copy)]
 pub struct Imm16;
+#[derive(Clone, Copy)]
+pub struct Direct16;
 
 // 8bitレジスタ操作、サイクル消費なし
 impl IO8<Reg8> for Cpu {
@@ -73,7 +75,7 @@ impl IO8<Reg8> for Cpu {
 // 16bitレジスタ操作、サイクル消費なし
 impl IO16<Reg16> for Cpu {
     fn read16(&mut self, _: &Peripherals, src: Reg16) -> Option<u16> {
-        println!("Reg16 read");
+        //println!("Reg16 read");
         // 値の取り出し
         Some(match src {
             Reg16::AF => self.regs.af(),
@@ -85,7 +87,7 @@ impl IO16<Reg16> for Cpu {
     }
 
     fn write16(&mut self, _: &mut Peripherals, dst: Reg16, val: u16) -> Option<()> {
-        println!("Reg16 write");
+        //println!("Reg16 write");
         // 値の書き込み
         Some(match dst {
             Reg16::AF => self.regs.write_af(val),
@@ -160,7 +162,7 @@ impl IO16<Imm16> for Cpu {
 }
 
 
-//16bitレジスタ、もしくは2つの8bitレジスタからなる16bitが指す場所の8bitを読み取る、サイクル1消費
+// 16bitレジスタ、もしくは2つの8bitレジスタからなる16bitが指す場所の8bitを読み取る、サイクル1消費
 impl IO8<Indirect> for Cpu {
     fn read8 (&mut self, bus: &Peripherals, src: Indirect) -> Option<u8> {
         static STEP: AtomicU8 = AtomicU8::new(0);
@@ -229,6 +231,85 @@ impl IO8<Indirect> for Cpu {
                 Some(())
             },
             _ => panic!("Not implemented: Indirect Indirect"),
+        }
+    }
+}
+
+
+// プログラムカウンタが指す場所から読み取られる16bitが指す場所から読み取られる8bit
+// Dの場合は3サイクル、DFFは2サイクル
+impl IO8<Direct8> for Cpu {
+    fn read8(&mut self, bus: &Peripherals, src: Direct8) -> Option<u8> {
+        static STEP: AtomicU8 = AtomicU8::new(0);
+        static VAL8: AtomicU8 = AtomicU8::new(0);
+        static VAL16: AtomicU16 = AtomicU16::new(0);
+        match STEP.load(Relaxed) {
+            0 => {
+                if let Some(lo) = self.read8(bus, Imm8) {
+                    VAL8.store(lo, Relaxed);
+                    STEP.store(1, Relaxed);
+                    // DFFか？その場合はサイクル数が1少ない
+                    if let Direct8::DFF = src {
+                        VAL16.store(0xFF00 | (lo as u16), Relaxed);
+                        STEP.store(2, Relaxed);
+                    }
+                }
+                None
+            },
+            1 => {
+                if let Some(hi) = self.read8(bus, Imm8) {
+                    VAL16.store(u16::from_be_bytes([VAL8.load(Relaxed), hi]), Relaxed);
+                    STEP.store(2, Relaxed);
+                }
+                None
+            },
+            2 => {
+                VAL8.store(bus.read(VAL16.load(Relaxed)), Relaxed);
+                STEP.store(3, Relaxed);
+                None
+            },
+            3 => {
+                STEP.store(0, Relaxed);
+                Some(VAL8.load(Relaxed))
+            }
+            _ => panic!(""),
+        }
+    }
+
+    fn write8(&mut self, bus: &mut Peripherals, dst: Direct8, val: u8) -> Option<()> {
+        static STEP: AtomicU8 = AtomicU8::new(0);
+        static VAL8: AtomicU8 = AtomicU8::new(0);
+        static VAL16: AtomicU16 = AtomicU16::new(0);
+        match STEP.load(Relaxed) {
+            0 => {
+                if let Some(lo) = self.read8(bus, Imm8) {
+                    VAL8.store(lo, Relaxed);
+                    STEP.store(1, Relaxed);
+                    // DFFか？その場合はサイクル数が1少ない
+                    if let Direct8::DFF = dst {
+                        VAL16.store(0xFF00 | (lo as u16), Relaxed);
+                        STEP.store(2, Relaxed);
+                    }
+                }
+                None
+            },
+            1 => {
+                if let Some(hi) = self.read8(bus, Imm8) {
+                    VAL16.store(u16::from_be_bytes([VAL8.load(Relaxed), hi]), Relaxed);
+                    STEP.store(2, Relaxed);
+                }
+                None
+            },
+            2 => {
+                bus.write(VAL16.load(Relaxed), val);
+                STEP.store(3, Relaxed);
+                None
+            },
+            3 => {
+                STEP.store(0, Relaxed);
+                Some(())
+            }
+            _ => panic!(""),
         }
     }
 }

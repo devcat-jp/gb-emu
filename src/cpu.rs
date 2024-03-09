@@ -2,7 +2,7 @@
 use crate::{
     registers::Registers,
     peripherals::Peripherals,
-    cpu::operand::{Reg8, Reg16, Imm8, Imm16, Indirect},
+    cpu::operand::{Reg8, Direct8, Reg16, Imm8, Imm16, Indirect, Cond},
 };
 
 use self::operand::IO8;
@@ -41,13 +41,15 @@ impl Cpu {
         self.ctx.cb = false;
         self.cycle = 0;
         // dbg
-        println!("-------------------------");
-        println!("op: {:x}", self.ctx.opecode);
-        println!("pc: {:x}", self.regs.pc);
-        println!("sp: {:x}", self.regs.sp);
-        println!("hl: {:x}", self.regs.hl());
-        println!("bc: {:x}", self.regs.bc());
-        println!("a: {:x}", self.regs.a);
+        if self.ctx.opecode == 0xE0 {
+            println!("-------------------------");
+            println!("op: {:x}", self.ctx.opecode);
+            println!("pc: {:x}", self.regs.pc);
+            println!("sp: {:x}", self.regs.sp);
+            println!("hl: {:x}", self.regs.hl());
+            println!("bc: {:x}", self.regs.bc());
+            println!("a: {:x}", self.regs.a);
+        }
     }
 
     // 0xCBの場合は16bit命令
@@ -77,13 +79,16 @@ impl Cpu {
             
             0x3E => self.ld(bus, Reg8::A, Imm8),
             0x22 => self.ld(bus, Indirect::HLI, Reg8::A),
+            0xE0 => self.ld(bus, Direct8::DFF, Reg8::A),
 
-            0xC5 => self.push(bus, Reg16::BC),
-            0xD5 => self.push(bus, Reg16::DE),
-            0xE5 => self.push(bus, Reg16::HL),
-            0xF5 => self.push(bus, Reg16::AF),
+            0x28 => self.jr_c(bus, Cond::Z),
+
+            //0xC5 => self.push(bus, Reg16::BC),
+            //0xD5 => self.push(bus, Reg16::DE),
+            //0xE5 => self.push(bus, Reg16::HL),
+            //0xF5 => self.push(bus, Reg16::AF),
             0xCB => self.cb_prefixed(bus),
-            0xCD => self.call(bus),
+            //0xCD => self.call(bus),
             _    => panic!("Not implemented: {:02x}", self.ctx.opecode),
         }
     }
@@ -100,7 +105,7 @@ impl Cpu {
     // サイクル
     pub fn emulate_cycle (&mut self, bus: &mut Peripherals) {
         self.cycle = self.cycle.wrapping_add(1);
-        println!("M-cycle {}", self.cycle);
+        if self.ctx.opecode == 0xE0 {println!("M-cycle {}", self.cycle);}
         self.decode(bus);
     }
 

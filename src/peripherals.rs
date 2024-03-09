@@ -22,7 +22,7 @@ impl Peripherals {
     // MMIO読み込み
     pub fn read(&self, addr: u16) -> u8 {
         // dbg
-        println!("mmio read: {:x}", addr);
+        //println!("mmio read: {:x}", addr);
         
         match addr {
             // ブートROMが無効の時はカートリッジ

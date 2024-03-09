@@ -1,15 +1,13 @@
 
 
 use std::sync::atomic::{
-    AtomicU8,
-    AtomicU16,
-    Ordering::Relaxed,      // 同期は行わない
+    AtomicU16, AtomicU8, Ordering::Relaxed      // 同期は行わない
 };
 
 use crate::{
     cpu::{
         Cpu,
-        operand::{IO8, IO16, Reg16, Imm16},
+        operand::{IO8, Imm8, IO16, Reg16, Imm16, Cond},
     },
     peripherals::Peripherals,
 };
@@ -18,14 +16,14 @@ use crate::{
 impl Cpu {
     // NOP命令
     pub fn nop (&mut self, bus: &Peripherals) {
-        println!("nop");
+        //println!("nop");
         self.fetch(bus);
     }
 
     // ld d s ： s の値を d  に格納する
     pub fn ld<D: Copy, S: Copy> (&mut self, bus: &mut Peripherals, dst: D, src: S) 
     where Self: IO8<D> + IO8<S> {
-        println!("ld8");
+        //println!("ld8");
         static STEP: AtomicU8 = AtomicU8::new(0);
         static VAL8: AtomicU8 = AtomicU8::new(0);
         match STEP.load(Relaxed) {
@@ -48,7 +46,7 @@ impl Cpu {
     }
     pub fn ld16<D: Copy, S: Copy> (&mut self, bus: &mut Peripherals, dst: D, src: S) 
     where Self: IO16<D> + IO16<S> {
-        println!("[ld16]");
+        //println!("[ld16]");
         static STEP: AtomicU8 = AtomicU8::new(0);
         static VAL16: AtomicU16 = AtomicU16::new(0);
         match STEP.load(Relaxed) {
@@ -73,7 +71,7 @@ impl Cpu {
     // bit num s : s の num bit目が0か1かを確認する
     pub fn bit <S: Copy>(&mut self, bus: &Peripherals, bit: usize, src: S) 
     where Self: IO8<S> {
-        println!("[bit]");
+        //println!("[bit]");
         if let Some(mut v) = self.read8(bus, src) {
             v &= 1 << bit;
             self.regs.set_zf(v == 0);
@@ -84,11 +82,48 @@ impl Cpu {
 
     }
 
+    // JR c : フラグがcを満たしていればJR命令（プログラムカウンタに加算）を行う
+    fn cond (&mut self, cond: Cond) -> bool {
+        match cond {
+            Cond::NZ => !self.regs.zf(),
+            Cond::Z  => self.regs.zf(),
+            Cond::NC => !self.regs.cf(),
+            Cond::C  => self.regs.cf(),
+        }
+    }
+    pub fn jr_c (&mut self, bus: &Peripherals, c: Cond) {
+        //println!("[jr_c]");
+        static STEP: AtomicU8 = AtomicU8::new(0);
+        match STEP.load(Relaxed) {
+            0 => {
+                if let Some(v) = self.read8(bus, Imm8) {
+                    STEP.store(2, Relaxed);
+                    // 条件を満たしている場合はジャンプ、加えてサイクル+1
+                    if self.cond(c) {
+                        //println!("exec jr");
+                        self.regs.pc = self.regs.pc.wrapping_add(v as i8 as u16);
+                        STEP.store(1, Relaxed);
+                    }
+                    //
+                    self.jr_c(bus, c);
+                }
+            },
+            1 => {
+                STEP.store(2, Relaxed);
+            },
+            2 => {
+                STEP.store(0, Relaxed);
+                self.fetch(bus);
+            },
+            _ => panic!(""),
+        }
+    }
+
 
     // push ：　16bit値をデクリメントした後にスタックポインタが指すアドレスに値を格納する
     pub fn push16 (&mut self, bus: &mut Peripherals, val: u16) -> Option<()> {
+        println!("[push16]");
         static STEP: AtomicU8 = AtomicU8::new(0);
-        println!("push16");
         static VAL8: AtomicU8 = AtomicU8::new(0);
         static VAL16: AtomicU16 = AtomicU16::new(0);
         match STEP.load(Relaxed) {
