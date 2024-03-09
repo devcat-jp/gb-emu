@@ -101,13 +101,21 @@ impl IO16<Reg16> for Cpu {
 // プログラムカウンタが指す場所から読み取られる8bit、サイクル1消費
 impl IO8<Imm8> for Cpu {
     fn read8(&mut self, bus: &Peripherals, _: Imm8) -> Option<u8> {
+        static STEP: AtomicU8 = AtomicU8::new(0);
         static VAL8: AtomicU8 = AtomicU8::new(0);
-        // プログラムカウンタの場所を読み取り
-        VAL8.store(bus.read(self.regs.pc), Relaxed);
-        // プログラムカウンタ増加
-        self.regs.pc = self.regs.pc.wrapping_add(1);
-        // 応答
-        Some(VAL8.load(Relaxed))
+        match STEP.load(Relaxed) {
+            0 => {
+                VAL8.store(bus.read(self.regs.pc), Relaxed);    // プログラムカウンタの場所を読み取り
+                self.regs.pc = self.regs.pc.wrapping_add(1);    // プログラムカウンタ増加
+                STEP.store(1, Relaxed);
+                None
+            },
+            1 => {
+                STEP.store(0, Relaxed);
+                Some(VAL8.load(Relaxed))    // 応答
+            },
+            _ => panic!(""),
+        }
     }
 
     fn write8(&mut self, _: &mut Peripherals, _: Imm8, _: u8) -> Option<()> {
@@ -124,28 +132,103 @@ impl IO16<Imm16> for Cpu {
         static VAL16: AtomicU16 = AtomicU16::new(0);
         match STEP.load(Relaxed) {
             0 => {
-                // 下位をImm8で読み込み
-                if let Some(lo) = self.read8(bus, Imm8) {
-                    VAL8.store(lo, Relaxed);
-                    STEP.store(1, Relaxed);
-                }
+                VAL8.store(bus.read(self.regs.pc), Relaxed);    // プログラムカウンタの場所を読み取り
+                self.regs.pc = self.regs.pc.wrapping_add(1);    // プログラムカウンタ増加
+                STEP.store(1, Relaxed);
                 None
             },
             1 => {
-                // 上位を同様に読み出して結合
-                if let Some(hi) = self.read8(bus, Imm8) {
-                    VAL16.store(u16::from_le_bytes([VAL8.load(Relaxed), hi]), Relaxed);
-                    STEP.store(2, Relaxed);
-                }
+                let hi = bus.read(self.regs.pc);    // プログラムカウンタの場所を読み取り
+                self.regs.pc = self.regs.pc.wrapping_add(1);    // プログラムカウンタ増加
+                VAL16.store(u16::from_le_bytes([VAL8.load(Relaxed), hi]), Relaxed);
+                STEP.store(2, Relaxed);
+                None
+            },
+            2 => {
                 // 応答
                 STEP.store(0, Relaxed);
                 Some(VAL16.load(Relaxed))
             },
-            _ => panic!("Not implemented: Imm8 read"),
+            _ => panic!(""),
         }
     }
 
     fn write16(&mut self, _: &mut Peripherals, _: Imm16, _: u16) -> Option<()> {
         todo!()
+    }
+
+}
+
+
+//16bitレジスタ、もしくは2つの8bitレジスタからなる16bitが指す場所の8bitを読み取る、サイクル1消費
+impl IO8<Indirect> for Cpu {
+    fn read8 (&mut self, bus: &Peripherals, src: Indirect) -> Option<u8> {
+        static STEP: AtomicU8 = AtomicU8::new(0);
+        static VAL8: AtomicU8 = AtomicU8::new(0);
+        match STEP.load(Relaxed) {
+            0 => {
+                VAL8.store(match  src{
+                    Indirect::BC  => bus.read(self.regs.bc()),
+                    Indirect::DE  => bus.read(self.regs.de()),
+                    Indirect::HL  => bus.read(self.regs.hl()),
+                    Indirect::CFF => bus.read(0xFF00 | (self.regs.c as u16)), // 特殊
+                    Indirect::HLD => {
+                        // HLの値を読んだ後にデクリメントする
+                        let addr = self.regs.hl();
+                        self.regs.write_hl(addr.wrapping_sub(1));
+                        bus.read(addr)
+                    },
+                    Indirect::HLI => {
+                        // HLの値を読んだ後にインクリメントする
+                        let addr = self.regs.hl();
+                        self.regs.write_hl(addr.wrapping_add(1));
+                        bus.read(addr)
+                    },
+                }, Relaxed);
+                STEP.store(1, Relaxed);
+                None
+            },
+            1 => {
+                STEP.store(0, Relaxed);
+                Some(VAL8.load(Relaxed))
+            },
+            _ => panic!("Not implemented: Indirect read"),
+        }
+    }
+
+    fn write8(&mut self, bus: &mut Peripherals, dst: Indirect, val: u8) -> Option<()> {
+        static STEP: AtomicU8 = AtomicU8::new(0);
+        static VAL8: AtomicU8 = AtomicU8::new(0);
+        match STEP.load(Relaxed) {
+            0 => {
+                match dst {
+                    Indirect::BC  => bus.write(self.regs.bc(), val),
+                    Indirect::DE  => bus.write(self.regs.de(), val),
+                    Indirect::HL  => bus.write(self.regs.hl(), val),
+                    Indirect::CFF => bus.write(0xFF00 | (self.regs.c as u16), val),
+                    Indirect::HLD => {
+                        // HLの値を読んだ後にデクリメントする
+                        let addr = self.regs.hl();
+                        self.regs.write_hl(addr.wrapping_sub(1));
+                        bus.write(addr, val);
+
+                    },
+                    Indirect::HLI => {
+                        // HLの値を読んだ後にインクリメントする
+                        let addr = self.regs.hl();
+                        self.regs.write_hl(addr.wrapping_add(1));
+                        bus.write(addr, val);
+
+                    },
+                }
+                STEP.store(1, Relaxed);
+                None
+            },
+            1 => {
+                STEP.store(0, Relaxed);
+                Some(())
+            },
+            _ => panic!("Not implemented: Indirect Indirect"),
+        }
     }
 }
