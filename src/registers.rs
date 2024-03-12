@@ -32,7 +32,7 @@ impl Registers {
         (self.d as u16) << 8 | (self.e as u16)
     }
 
-    // HLの組み合わせのレジスタ、Fが下位ビット
+    // HLの組み合わせのレジスタ、Lが下位ビット
     pub fn hl(&self) -> u16 {
         (self.h as u16) << 8 | (self.l as u16)
     }

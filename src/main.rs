@@ -2,6 +2,7 @@
 #![allow(dead_code)]
 
 mod cpu;
+mod ppu;
 mod hram;
 mod bootrom;
 mod registers;
@@ -30,7 +31,7 @@ fn main() {
     // cpu
     let mut cpu = Cpu::new();
 
-    for _ in 0..100000 {
+    for _ in 0..10000000 {
         cpu.emulate_cycle(&mut peripherals); 
     }
 

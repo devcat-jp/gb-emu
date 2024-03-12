@@ -258,7 +258,7 @@ impl IO8<Direct8> for Cpu {
             },
             1 => {
                 if let Some(hi) = self.read8(bus, Imm8) {
-                    VAL16.store(u16::from_be_bytes([VAL8.load(Relaxed), hi]), Relaxed);
+                    VAL16.store(u16::from_le_bytes([VAL8.load(Relaxed), hi]), Relaxed);
                     STEP.store(2, Relaxed);
                 }
                 None
@@ -295,7 +295,7 @@ impl IO8<Direct8> for Cpu {
             },
             1 => {
                 if let Some(hi) = self.read8(bus, Imm8) {
-                    VAL16.store(u16::from_be_bytes([VAL8.load(Relaxed), hi]), Relaxed);
+                    VAL16.store(u16::from_le_bytes([VAL8.load(Relaxed), hi]), Relaxed);
                     STEP.store(2, Relaxed);
                 }
                 None

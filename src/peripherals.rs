@@ -4,11 +4,13 @@
 use crate::{
     bootrom::Bootrom,
     hram::HRam,
+    ppu::Ppu,
 };
 
 pub struct Peripherals {
     bootrom: Bootrom,
     hram: HRam,
+    ppu: Ppu,
 }
 
 impl Peripherals {
@@ -16,6 +18,7 @@ impl Peripherals {
         Self {
             bootrom,
             hram: HRam::new(),
+            ppu: Ppu::new(),
         }
     }
 
@@ -31,6 +34,9 @@ impl Peripherals {
             } else {
                 0xFF
             },
+            0x8000..=0x9FFF => self.ppu.read(addr),
+            0xFE00..=0xFE9F => self.ppu.read(addr),
+            0xFF40..=0xFF4B => self.ppu.read(addr),
             0xFF80..=0xFFFE => self.hram.read(addr),
             _ => 0xFF
         }
@@ -40,6 +46,9 @@ impl Peripherals {
     pub fn write(&mut self, addr: u16, val: u8) {
         match addr {
             0xFF50          => self.bootrom.write(addr, val),
+            0x8000..=0x9FFF => self.ppu.write(addr, val),
+            0xFE00..=0xFE9F => self.ppu.write(addr, val),
+            0xFF40..=0xFF4B => self.ppu.write(addr, val),
             0xFF80..=0xFFFE => self.hram.write(addr, val),
             _ => (),
         }
