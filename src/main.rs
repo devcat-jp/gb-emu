@@ -3,40 +3,49 @@
 
 mod cpu;
 mod ppu;
+mod lcd;
 mod hram;
 mod bootrom;
 mod registers;
 mod peripherals;
 
-use cpu::Cpu;
-use bootrom::Bootrom;
-use peripherals::Peripherals;
+use crate::{
+    cpu::Cpu,
+    lcd::Lcd,
+    bootrom::Bootrom,
+    peripherals::Peripherals,
+};
 
-// 表示用ライブラリ
-use embedded_graphics::{prelude::*, pixelcolor::BinaryColor};
-use embedded_graphics_simulator::{SimulatorDisplay,Window, OutputSettingsBuilder};
+
+pub const LCD_WIDTH: usize = 160;
+pub const LCD_HEIGHT: usize = 144;
+pub const LCD_PIXELS: usize = LCD_WIDTH * LCD_HEIGHT;
+
+const CPU_CLOCK_HZ: u128 = 4_194_304;
+const M_CYCLE_CLOCK: u128 = 4;
+const M_CYCLE_NANOS: u128 = M_CYCLE_CLOCK * 1_000_000_000 / CPU_CLOCK_HZ;
 
 
 fn main() {
 
-    // 疑似ディスプレイ
-    let display: SimulatorDisplay<BinaryColor> = SimulatorDisplay::new(Size::new(320,240));
-    let output_settings = OutputSettingsBuilder::new().build();
-    let mut window = Window::new("Debug", &output_settings);
-
+    let mut lcd = Lcd::new();
+    let mut cpu = Cpu::new();
     let bootrom = Bootrom::new();
     let mut peripherals = Peripherals::new(bootrom);
 
-
-    // cpu
-    let mut cpu = Cpu::new();
-
-    for _ in 0..10000000 {
+    //let time = time::Instant::now;
+    //let mut elapsed = 0;
+    loop {
         cpu.emulate_cycle(&mut peripherals); 
+
+        if peripherals.ppu.emulate_cycle() {
+            // 画面表示
+            lcd.draw(&peripherals.ppu.buffer);
+            lcd.updata();
+            //println!("{:x}", peripherals.ppu.buffer());
+        }
     }
 
-   
 
-    // 表示
-    window.show_static(&display);
+   
 }

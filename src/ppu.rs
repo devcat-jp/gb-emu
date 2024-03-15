@@ -1,7 +1,9 @@
+#![allow(dead_code)]
+
 #[derive(Copy, Clone, PartialEq, Eq)]
 enum Mode {
-    HBlink = 0,
-    VBlink = 1,
+    HBlank = 0,
+    VBlank = 1,
     OamScan = 2,
     Drawing = 3,
 }
@@ -26,6 +28,12 @@ pub struct Ppu {
 }
 
 
+use crate::{
+    LCD_WIDTH,
+    LCD_PIXELS,
+};
+
+
 // LCDCレジスタで使用する定数
 const PPU_ENABLE: u8 = 1 << 7;
 const WINDOW_TILE_MAP:u8 = 1 << 6;
@@ -43,10 +51,6 @@ const VBLANK_INT: u8 = 1 << 4;
 const HBLANK_INT: u8 = 1 << 3;
 const LYC_EQ_LY: u8 = 1 << 2;
 
-// 定数
-const LCD_WIDTH: usize = 160;
-const LCH_HIGHT:usize = 144;
-const LCD_PIXELS:usize = LCD_WIDTH * LCH_HIGHT;
 
 impl Ppu {
     pub fn new() -> Self {
@@ -58,12 +62,12 @@ impl Ppu {
             lyc: 0,
             scx: 0,
             scy: 0,
-            bgp: 0,
-            obp0: 0,
-            obp1: 0,
+            bgp: 0x00,
+            obp0: 0x00,
+            obp1: 0x00,
             wy: 0,
             wx: 0,
-            cycles: 0,
+            cycles: 20,
             vram: vec![0; 0x2000],
             oam: vec![0; 0xA0],
             buffer: vec![0; LCD_PIXELS*4],
@@ -102,7 +106,7 @@ impl Ppu {
 
     pub fn write(&mut self, addr: u16, val: u8) {
         match addr {
-            0x8000..=0x9FFF => if self.mode == Mode::Drawing {
+            0x8000..=0x9FFF => if self.mode != Mode::Drawing {
                 self.vram[addr as usize & 0x1FFF] = val;
             },
             0xFE00..=0xFE9F => if self.mode != Mode::Drawing || self.mode != Mode::OamScan {
@@ -139,7 +143,7 @@ impl Ppu {
     // タイルマップの特定のマスに格納されたタイルのインデックスを取得する
     fn get_tile_idx_from_tile_map(&self, tile_map: bool, row: u8, col: u8) -> usize{
         let start_addr: usize = 0x1800 | ((tile_map as usize) << 10);
-        let ret = self.vram[start_addr | ((((row as usize) << 5) + col as usize) & 0x3FF)];
+        let ret = self.vram[start_addr | (((row as usize) << 5) + col as usize) & 0x3FF];
         // LCDCのアドレス指定モードに応じて変更
         if self.lcdc & TILE_DATA_ADDRESSING_MODE > 0 {
             ret as usize
@@ -165,7 +169,7 @@ impl Ppu {
             );
 
             let pixel = self.get_pixel_from_tile(tile_idx, y & 7, x & 7);
-
+            
             self.buffer[LCD_WIDTH * self.ly as usize + i] =
                 match (self.bgp >> (pixel << 1)) & 0b11 {   // パレットから色を取得
                     0b00 => 0xFF,   // 白
@@ -186,6 +190,7 @@ impl Ppu {
     }
 
     pub fn emulate_cycle(&mut self) -> bool {
+
         // PPU が無効の時は描画しない
         if self.lcdc & PPU_ENABLE == 0 {
           return false;
@@ -198,18 +203,18 @@ impl Ppu {
 
         let mut ret = false;
         match  self.mode {
-            Mode::HBlink => {
+            Mode::HBlank => {
                 self.ly += 1;
                 if self.ly < 144 {
                     self.mode = Mode::OamScan;
                     self.cycles = 20;
                 } else {
-                    self.mode = Mode::VBlink;
+                    self.mode = Mode::VBlank;
                     self.cycles = 114;
                 }
                 self.check_lyc_eq_ly();
             },
-            Mode::VBlink => {
+            Mode::VBlank => {
                 self.ly += 1;
                 if self.ly > 153 {
                     ret = true;
@@ -217,7 +222,7 @@ impl Ppu {
                     self.mode = Mode::OamScan;
                     self.cycles = 20;
                 } else {
-                    self.ly = 114;
+                    self.cycles = 114;
                 }
                 self.check_lyc_eq_ly();
             },
@@ -227,7 +232,7 @@ impl Ppu {
             },
             Mode::Drawing => {
                 self.render_bg();
-                self.mode = Mode::HBlink;
+                self.mode = Mode::HBlank;
                 self.cycles = 51;
             },
         }

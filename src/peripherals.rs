@@ -10,7 +10,7 @@ use crate::{
 pub struct Peripherals {
     bootrom: Bootrom,
     hram: HRam,
-    ppu: Ppu,
+    pub ppu: Ppu,
 }
 
 impl Peripherals {
