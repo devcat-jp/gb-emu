@@ -70,7 +70,7 @@ impl Ppu {
             cycles: 20,
             vram: vec![0; 0x2000],
             oam: vec![0; 0xA0],
-            buffer: vec![0; LCD_PIXELS*4],
+            buffer: vec![0; LCD_PIXELS],
         }
     }
 

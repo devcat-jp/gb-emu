@@ -1,16 +1,13 @@
 #![allow(dead_code)]
 
 // 表示用ライブラリ
-
-use embedded_graphics::{prelude::*, pixelcolor::Rgb888};//pixelcolor::BinaryColor};
+use embedded_graphics::{image::ImageRaw, pixelcolor::Gray8, prelude::*};
 use embedded_graphics_simulator::{SimulatorDisplay,Window, OutputSettingsBuilder};
-//use tinybmp::Bmp;
 
-use crate::{LCD_HEIGHT, LCD_WIDTH};
-
+use crate::LCD_WIDTH;
 
 pub struct Lcd {
-    display: SimulatorDisplay<Rgb888>,
+    display: SimulatorDisplay<Gray8>,
     window: Window,
 }
 
@@ -25,29 +22,9 @@ impl Lcd {
 
     // 画面描画
     pub fn draw(&mut self, pixcles: &Vec<u8>) {
-        let mut cnt = 0;
-        for t in 0..LCD_HEIGHT {
-            for s in 0..LCD_WIDTH {
-                match pixcles[cnt] {
-                    0xFF => {
-                        let _= Pixel(Point::new(s as i32, t as i32), Rgb888::WHITE).draw(&mut self.display);
-                    },
-                    0xAA => {
-                        let _= Pixel(Point::new(s as i32, t as i32), Rgb888::BLUE).draw(&mut self.display);
-                    },
-                    0x55 => {
-                        let _= Pixel(Point::new(s as i32, t as i32), Rgb888::CSS_VIOLET).draw(&mut self.display);
-                    },
-                    0x00 => {
-                        let _= Pixel(Point::new(s as i32, t as i32), Rgb888::BLACK).draw(&mut self.display);
-                    },
-                    _ => {
-                        
-                    }, 
-                }
-                cnt += 1;
-            }
-        }
+        let raw = ImageRaw::<Gray8>::new(pixcles, LCD_WIDTH as u32);
+        //let image = Image::new(&data, Point::zero());
+        let _ = raw.draw(&mut self.display);
         
     }
 
