@@ -107,7 +107,7 @@ impl IO8<Imm8> for Cpu {
         static VAL8: AtomicU8 = AtomicU8::new(0);
         match STEP.load(Relaxed) {
             0 => {
-                VAL8.store(bus.read(self.regs.pc), Relaxed);    // プログラムカウンタの場所を読み取り
+                VAL8.store(bus.read(&self.interrupts, self.regs.pc), Relaxed);    // プログラムカウンタの場所を読み取り
                 self.regs.pc = self.regs.pc.wrapping_add(1);    // プログラムカウンタ増加
                 STEP.store(1, Relaxed);
                 None
@@ -134,13 +134,13 @@ impl IO16<Imm16> for Cpu {
         static VAL16: AtomicU16 = AtomicU16::new(0);
         match STEP.load(Relaxed) {
             0 => {
-                VAL8.store(bus.read(self.regs.pc), Relaxed);    // プログラムカウンタの場所を読み取り
+                VAL8.store(bus.read(&self.interrupts,self.regs.pc), Relaxed);    // プログラムカウンタの場所を読み取り
                 self.regs.pc = self.regs.pc.wrapping_add(1);    // プログラムカウンタ増加
                 STEP.store(1, Relaxed);
                 None
             },
             1 => {
-                let hi = bus.read(self.regs.pc);    // プログラムカウンタの場所を読み取り
+                let hi = bus.read(&self.interrupts,self.regs.pc);    // プログラムカウンタの場所を読み取り
                 self.regs.pc = self.regs.pc.wrapping_add(1);    // プログラムカウンタ増加
                 VAL16.store(u16::from_le_bytes([VAL8.load(Relaxed), hi]), Relaxed);
                 STEP.store(2, Relaxed);
@@ -170,21 +170,21 @@ impl IO8<Indirect> for Cpu {
         match STEP.load(Relaxed) {
             0 => {
                 VAL8.store(match  src{
-                    Indirect::BC  => bus.read(self.regs.bc()),
-                    Indirect::DE  => bus.read(self.regs.de()),
-                    Indirect::HL  => bus.read(self.regs.hl()),
-                    Indirect::CFF => bus.read(0xFF00 | (self.regs.c as u16)), // 特殊
+                    Indirect::BC  => bus.read(&self.interrupts, self.regs.bc()),
+                    Indirect::DE  => bus.read(&self.interrupts, self.regs.de()),
+                    Indirect::HL  => bus.read(&self.interrupts, self.regs.hl()),
+                    Indirect::CFF => bus.read(&self.interrupts, 0xFF00 | (self.regs.c as u16)), // 特殊
                     Indirect::HLD => {
                         // HLの値を読んだ後にデクリメントする
                         let addr = self.regs.hl();
                         self.regs.write_hl(addr.wrapping_sub(1));
-                        bus.read(addr)
+                        bus.read(&self.interrupts, addr)
                     },
                     Indirect::HLI => {
                         // HLの値を読んだ後にインクリメントする
                         let addr = self.regs.hl();
                         self.regs.write_hl(addr.wrapping_add(1));
-                        bus.read(addr)
+                        bus.read(&self.interrupts, addr)
                     },
                 }, Relaxed);
                 STEP.store(1, Relaxed);
@@ -204,22 +204,22 @@ impl IO8<Indirect> for Cpu {
         match STEP.load(Relaxed) {
             0 => {
                 match dst {
-                    Indirect::BC  => bus.write(self.regs.bc(), val),
-                    Indirect::DE  => bus.write(self.regs.de(), val),
-                    Indirect::HL  => bus.write(self.regs.hl(), val),
-                    Indirect::CFF => bus.write(0xFF00 | (self.regs.c as u16), val),
+                    Indirect::BC  => bus.write(&mut self.interrupts, self.regs.bc(), val),
+                    Indirect::DE  => bus.write(&mut self.interrupts, self.regs.de(), val),
+                    Indirect::HL  => bus.write(&mut self.interrupts, self.regs.hl(), val),
+                    Indirect::CFF => bus.write(&mut self.interrupts, 0xFF00 | (self.regs.c as u16), val),
                     Indirect::HLD => {
                         // HLの値を読んだ後にデクリメントする
                         let addr = self.regs.hl();
                         self.regs.write_hl(addr.wrapping_sub(1));
-                        bus.write(addr, val);
+                        bus.write(&mut self.interrupts,addr, val);
 
                     },
                     Indirect::HLI => {
                         // HLの値を読んだ後にインクリメントする
                         let addr = self.regs.hl();
                         self.regs.write_hl(addr.wrapping_add(1));
-                        bus.write(addr, val);
+                        bus.write(&mut self.interrupts,addr, val);
 
                     },
                 }
@@ -264,7 +264,7 @@ impl IO8<Direct8> for Cpu {
                 None
             },
             2 => {
-                VAL8.store(bus.read(VAL16.load(Relaxed)), Relaxed);
+                VAL8.store(bus.read(&self.interrupts, VAL16.load(Relaxed)), Relaxed);
                 STEP.store(3, Relaxed);
                 None
             },
@@ -301,7 +301,7 @@ impl IO8<Direct8> for Cpu {
                 None
             },
             2 => {
-                bus.write(VAL16.load(Relaxed), val);
+                bus.write(&mut self.interrupts,VAL16.load(Relaxed), val);
                 STEP.store(3, Relaxed);
                 None
             },

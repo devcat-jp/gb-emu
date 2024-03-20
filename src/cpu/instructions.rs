@@ -19,6 +19,28 @@ impl Cpu {
         self.fetch(bus);
     }
 
+    // HALT
+    // 割り込みが発生するまでCPUを停止させる
+    pub fn halt(&mut self, bus: &Peripherals) {
+        static STEP: AtomicU8 = AtomicU8::new(0);
+        match STEP.load(Relaxed) {
+            0 => {
+                if self.interrupts.get_interrupt() > 0 {
+                    self.fetch(bus);
+                } else {
+                    STEP.store(1, Relaxed);
+                }
+            },
+            1 => {
+                if self.interrupts.get_interrupt() > 0 {
+                    STEP.store(0, Relaxed);
+                    self.fetch(bus);
+                }
+            },
+            _ => panic!("Not Define"),
+        }
+    }
+
     // ld d s ： s の値を d  に格納する
     pub fn ld<D: Copy, S: Copy> (&mut self, bus: &mut Peripherals, dst: D, src: S) 
     where Self: IO8<D> + IO8<S> {
@@ -323,7 +345,7 @@ impl Cpu {
                 let [lo, hi] = u16::to_le_bytes(val);
                 // デクリメントしたアドレスに書き込み
                 self.regs.sp = self.regs.sp.wrapping_sub(1);
-                bus.write(self.regs.sp, hi);
+                bus.write(&mut self.interrupts, self.regs.sp, hi);
                 //
                 VAL8.store(lo, Relaxed);
                 STEP.store(2, Relaxed);
@@ -332,7 +354,7 @@ impl Cpu {
             2 => {
                 // デクリメントしたアドレスに書き込み
                 self.regs.sp = self.regs.sp.wrapping_sub(1);
-                bus.write(self.regs.sp, VAL8.load(Relaxed));
+                bus.write(&mut self.interrupts, self.regs.sp, VAL8.load(Relaxed));
                 //
                 STEP.store(0, Relaxed);
                 Some(())
@@ -346,6 +368,7 @@ impl Cpu {
         static VAL16: AtomicU16 = AtomicU16::new(0);
         match STEP.load(Relaxed) {
             0 => {
+                // pushはレジスタ操作のみなのでサイクル消費しない
                 VAL16.store(self.read16(bus, src).unwrap(), Relaxed);
                 STEP.store(1, Relaxed);
                 // 応答が得られたので再度処理を行う
@@ -371,13 +394,13 @@ impl Cpu {
         static VAL16: AtomicU16 = AtomicU16::new(0);
         match STEP.load(Relaxed) {
             0 => {
-                VAL8.store(bus.read(self.regs.sp), Relaxed);
+                VAL8.store(bus.read(&self.interrupts, self.regs.sp), Relaxed);
                 self.regs.sp = self.regs.sp.wrapping_add(1);
                 STEP.store(1, Relaxed);
                 None
             },
             1 => {
-                let hi = bus.read(self.regs.sp);
+                let hi = bus.read(&self.interrupts, self.regs.sp);
                 self.regs.sp = self.regs.sp.wrapping_add(1);
                 VAL16.store(u16::from_le_bytes([VAL8.load(Relaxed), hi]), Relaxed);
                 STEP.store(2, Relaxed);
@@ -414,8 +437,42 @@ impl Cpu {
             },
             _ => panic!(""),
         }
-
     }
+
+    // RETI
+    // IMEを1にする以外はRETと同じ
+    pub fn reti(&mut self, bus: &Peripherals) {
+        static STEP: AtomicU8 = AtomicU8::new(0);
+        match STEP.load(Relaxed) {
+            0 => {
+                if let Some(v) = self.pop16(bus) {
+                    self.regs.pc = v;
+                    STEP.store(1, Relaxed);
+                }
+            },
+            1 => {
+                self.interrupts.ime = true;             // retとの差
+                STEP.store(0, Relaxed);
+                self.fetch(bus);
+            },
+            _ => panic!(""),
+        }
+    }
+
+    // EI
+    // フェッチしてからIMEを1にする
+    pub fn ei(&mut self, bus: &Peripherals) {
+        self.fetch(bus);
+        self.interrupts.ime = true;
+    }
+
+    // DI
+    // IMEを1にしてからフェッチする
+    pub fn di(&mut self, bus: &Peripherals) {
+        self.interrupts.ime = true;
+        self.fetch(bus);
+    }
+
 
 
     // call ：　プログラムカウンタの値をスタックにpushし、その後元のプログラムカウンタに戻す、6サイクル
@@ -466,20 +523,9 @@ impl Cpu {
             }
             _ => panic!(""),
         }
-        
-        /*
-        step!(self.ctx.cache["inst"].step, (), {
-          0: if let Some(v) = self.read16(bus, Imm16) {
-            self.regs.pc = v;
-            return go!(self.ctx.cache.get_mut("inst").unwrap().step, 1);
-          },
-          1: {
-            go!(self.ctx.cache.get_mut("inst").unwrap().step, 0);
-            self.fetch(bus);
-          },
-        });
-        */
       }
+
+
 
     
 

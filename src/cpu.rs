@@ -1,14 +1,18 @@
 //use std::io::{self};
 
+use std::sync::atomic::{
+    AtomicU8, Ordering::Relaxed      // 同期は行わない
+};
+
 // CPU
 use crate::{
-    registers::Registers,
-    peripherals::Peripherals,
-    cpu::operand::{IO8, Reg8, Direct8, Reg16, Imm8, Imm16, Indirect, Cond},
+    cpu::{interrupts::{Interrupts, JOYPAD, SERIAL, STAT, TIMER, VBLANK}, operand::{Cond, Direct8, Imm16, Imm8, Indirect, Reg16, Reg8, IO8}}, peripherals::Peripherals, registers::Registers
 };
 
 mod operand;
 mod instructions;
+pub mod interrupts;
+
 
 
 // 1サイクルで完了しない命令用
@@ -16,12 +20,14 @@ mod instructions;
 struct Ctx {
     opecode: u8,
     cb: bool,
+    int: bool,          // 割り込みフラグ
 }
 
 #[derive(Default, Clone)]
 pub struct Cpu {
     cycle: u8,          // debug
     regs: Registers,
+    pub interrupts: Interrupts,
     ctx: Ctx,
 }
 
@@ -30,13 +36,19 @@ impl Cpu {
         Self {
             cycle: 0,
             regs: Registers::default(),
+            interrupts: Interrupts::default(),
             ctx: Ctx::default(),
         }
     }
 
     // フェッチ
     pub fn fetch (&mut self, bus: &Peripherals) {
-        self.ctx.opecode = bus.read(self.regs.pc);  // プログラムカウンタを格納
+        self.ctx.opecode = bus.read(&self.interrupts, self.regs.pc);  // プログラムカウンタを格納
+        if self.interrupts.ime && self.interrupts.get_interrupt() > 0 {     // 割り込みは有効か？
+            self.ctx.int = true;
+        } else {
+            self.ctx.int = false;
+        }
         self.regs.pc = self.regs.pc.wrapping_add(1);      // プログラムカウンタをインクリメント、wrapping_addは桁溢れを無視
         self.ctx.cb = false;
         self.cycle = 0;
@@ -50,6 +62,65 @@ impl Cpu {
             //println!("bc: {:x}", self.regs.bc());
             //println!("a: {:x}", self.regs.a);
             println!("c: {:x}", self.regs.c);
+        }
+    }
+
+    // サイクル
+    pub fn emulate_cycle (&mut self, bus: &mut Peripherals) {
+        self.cycle = self.cycle.wrapping_add(1);
+        //if self.ctx.opecode == 0xC5  {println!("M-cycle {}", self.cycle);}
+
+        if self.ctx.int {
+            self.call_isr(bus);
+        } else {
+            self.decode(bus);
+
+        }
+        
+        // debug
+        // 命令終了時の状態で停止させる
+        /*
+        if self.regs.a == 0x91 {
+            println!("[[STOP]]");
+            println!("op: {:x}", self.ctx.opecode);
+            println!("pc: {:x}", self.regs.pc);
+            println!("sp: {:x}", self.regs.sp);
+
+            let mut line = String::new(); // 入力用のバッファ
+            io::stdin()
+                .read_line(&mut line) // キーボードからの入力（標準入力）を 1 行読み込む
+                .expect("Failed to read line"); // 戻り値の Result が Err の場合は終了
+        }
+        */
+    }
+
+    // ISR
+    fn call_isr(&mut self, bus: &mut Peripherals) {
+        static STEP: AtomicU8 = AtomicU8::new(0);
+        match STEP.load(Relaxed) {
+            0 => {
+                if let Some(_) = self.push16(bus, self.regs.pc) {
+                    // 割り込み優先順位が高いものを処理する、trailing_zerosは末尾の0の数を返す
+                    let highest_int: u8 = 1 << self.interrupts.get_interrupt().trailing_zeros();
+                    self.interrupts.int_flags &= !highest_int;      // 割り込み承認
+                    // ISR呼び出し
+                    self.regs.pc = match highest_int {
+                        VBLANK => 0x0040,       // ISRのアドレス
+                        STAT   => 0x0048,
+                        TIMER  => 0x0050,
+                        SERIAL => 0x0058,
+                        JOYPAD => 0x0060,
+                        _      => panic!("Not Define: {:x}", highest_int),
+                    };
+                    STEP.store(1, Relaxed);
+                }
+            },
+            1 => {
+                self.interrupts.ime = false;    // 割り込み無効
+                STEP.store(0, Relaxed);
+                self.fetch(bus);
+            },
+            _ => panic!("Not Define"),
         }
     }
 
@@ -147,28 +218,7 @@ impl Cpu {
         }
     }
 
-    // サイクル
-    pub fn emulate_cycle (&mut self, bus: &mut Peripherals) {
-        self.cycle = self.cycle.wrapping_add(1);
-        //if self.ctx.opecode == 0x18  {println!("M-cycle {}", self.cycle);}
-        self.decode(bus);
 
-        // debug
-        // 命令終了時の状態で停止させる
-        /*
-        if self.regs.a == 0x91 {
-            println!("[[STOP]]");
-            println!("op: {:x}", self.ctx.opecode);
-            println!("pc: {:x}", self.regs.pc);
-            println!("sp: {:x}", self.regs.sp);
-
-            let mut line = String::new(); // 入力用のバッファ
-            io::stdin()
-                .read_line(&mut line) // キーボードからの入力（標準入力）を 1 行読み込む
-                .expect("Failed to read line"); // 戻り値の Result が Err の場合は終了
-        }
-        */
-    }
 
 
 

@@ -5,7 +5,7 @@
 use std::{
     env,
     fs::File,
-    io::{ Read, },
+    io::Read,
     process::exit,
 };
 
@@ -69,14 +69,16 @@ fn main() {
 
     //let time = time::Instant::now;
     //let mut elapsed = 0;
+    let is_lcd = false;
     loop {
         cpu.emulate_cycle(&mut peripherals); 
 
         if peripherals.ppu.emulate_cycle() {
             // 画面表示
-            lcd.draw(&peripherals.ppu.buffer);
-            lcd.updata();
-            //println!("{:x}", peripherals.ppu.buffer());
+            if is_lcd {
+                lcd.draw(&peripherals.ppu.buffer);
+                lcd.updata();
+            }
         }
     }
 
