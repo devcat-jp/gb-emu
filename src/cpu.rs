@@ -132,7 +132,7 @@ impl Cpu {
             
             0xFE => self.cp(bus, Imm8),
 
-            _    => panic!("Not implemented: {:02x}", self.ctx.opecode),
+            _    => panic!("Not implemented: 0x{:02x}, pc: 0x{:x}", self.ctx.opecode, self.regs.pc),
         }
     }
 

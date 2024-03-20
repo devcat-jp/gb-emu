@@ -2,20 +2,20 @@
 #![allow(dead_code)]
 
 use crate::{
-    bootrom::Bootrom,
-    hram::HRam,
-    ppu::Ppu,
+    bootrom::Bootrom, cartridge::Cartridge, hram::HRam, ppu::Ppu
 };
 
 pub struct Peripherals {
+    cartridge: Cartridge,
     bootrom: Bootrom,
     hram: HRam,
     pub ppu: Ppu,
 }
 
 impl Peripherals {
-    pub fn new (bootrom: Bootrom) -> Self {
+    pub fn new (bootrom: Bootrom, cartridge: Cartridge) -> Self {
         Self {
+            cartridge,
             bootrom,
             hram: HRam::new(),
             ppu: Ppu::new(),
@@ -32,8 +32,10 @@ impl Peripherals {
             0x0000..=0x00FF => if self.bootrom.is_active() {
                 self.bootrom.read(addr)
             } else {
-                0xFF
+                self.cartridge.read(addr)
             },
+            0x0100..=0x7FFF => self.cartridge.read(addr),
+            0xA000..=0xBFFF => self.cartridge.read(addr), 
             0x8000..=0x9FFF => self.ppu.read(addr),
             0xFE00..=0xFE9F => self.ppu.read(addr),
             0xFF40..=0xFF4B => self.ppu.read(addr),
