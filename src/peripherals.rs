@@ -48,6 +48,8 @@ impl Peripherals {
     pub fn write(&mut self, addr: u16, val: u8) {
         match addr {
             0xFF50          => self.bootrom.write(addr, val),
+            0x0100..=0x7FFF => self.cartridge.write(addr, val),
+            0xA000..=0xBFFF => self.cartridge.write(addr, val), 
             0x8000..=0x9FFF => self.ppu.write(addr, val),
             0xFE00..=0xFE9F => self.ppu.write(addr, val),
             0xFF40..=0xFF4B => self.ppu.write(addr, val),
