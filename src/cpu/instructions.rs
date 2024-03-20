@@ -387,6 +387,8 @@ impl Cpu {
         }
     }
 
+
+
     // pop d : 16bitの値をスタックからpopする
     pub fn pop16 (&mut self, bus: &Peripherals) -> Option<u16> {
         static STEP: AtomicU8 = AtomicU8::new(0);
@@ -503,6 +505,26 @@ impl Cpu {
             }
             _ => panic!("Not implemented: call"),
         }
+    }
+
+    // RST
+    // 指定されたアドレスを対象にCALLを行う、4サイクル
+    pub fn rst(&mut self, bus: &mut Peripherals, addr: u8) {
+        static STEP: AtomicU8 = AtomicU8::new(0);
+        match STEP.load(Relaxed) {
+            0 => {
+                if self.push16(bus, self.regs.pc).is_some() {
+                    self.regs.pc = addr as u16;
+                    STEP.store(1, Relaxed);
+                }
+            },
+            1 => {
+                STEP.store(0, Relaxed);
+                self.fetch(bus);
+            },
+            _ => panic!("Not Define"),
+        }
+        
     }
 
     // JP

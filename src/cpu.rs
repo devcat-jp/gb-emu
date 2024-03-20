@@ -13,6 +13,8 @@ mod operand;
 mod instructions;
 pub mod interrupts;
 
+const CHK_OP: u8 = 0xFF;
+
 
 
 // 1サイクルで完了しない命令用
@@ -53,7 +55,7 @@ impl Cpu {
         self.ctx.cb = false;
         self.cycle = 0;
         // dbg
-        if self.ctx.opecode == 0xFF {
+        if self.ctx.opecode == CHK_OP {
             println!("-------------------------");
             println!("op: {:x}", self.ctx.opecode);
             println!("pc: {:x}", self.regs.pc);
@@ -68,7 +70,7 @@ impl Cpu {
     // サイクル
     pub fn emulate_cycle (&mut self, bus: &mut Peripherals) {
         self.cycle = self.cycle.wrapping_add(1);
-        //if self.ctx.opecode == 0xC5  {println!("M-cycle {}", self.cycle);}
+        if self.ctx.opecode == CHK_OP  {println!("M-cycle {}", self.cycle);}
 
         if self.ctx.int {
             self.call_isr(bus);
@@ -146,8 +148,6 @@ impl Cpu {
         match self.ctx.opecode {
             0x00 => self.nop(bus),
 
-
-            
             0x06 => self.ld(bus, Reg8::B, Imm8),
             0x0E => self.ld(bus, Reg8::C, Imm8),
             0x1A => self.ld(bus, Reg8::A, Indirect::DE),
@@ -160,6 +160,7 @@ impl Cpu {
             0x79 => self.ld(bus, Reg8::A, Reg8::C),
             0x7A => self.ld(bus, Reg8::A, Reg8::D),
             0x7B => self.ld(bus, Reg8::A, Reg8::E),
+            0x7D => self.ld(bus, Reg8::A, Reg8::L),
             0xE0 => self.ld(bus, Direct8::DFF, Reg8::A),
             0xEA => self.ld(bus, Direct8::D, Reg8::A),
             
@@ -171,6 +172,7 @@ impl Cpu {
 
             0x13 => self.inc16(bus, Reg16::DE),
             0x23 => self.inc16(bus, Reg16::HL),
+            0x3C => self.inc(bus, Reg8::A),
 
             0x05 => self.dec(bus, Reg8::B),
             0x15 => self.dec(bus, Reg8::D),
@@ -180,6 +182,8 @@ impl Cpu {
             0x18 => self.jr(bus),
             0x20 => self.jr_c(bus, Cond::NZ),
             0x28 => self.jr_c(bus, Cond::Z),
+
+            0x7C => self.bit(bus, 7, Reg8::H),
 
             //0xC5 => self.push(bus, Reg16::BC),
             //0xD5 => self.push(bus, Reg16::DE),
@@ -196,12 +200,15 @@ impl Cpu {
             0xC1 => self.pop(bus, Reg16::BC),
             0xF1 => self.pop(bus, Reg16::AF),
 
+            0xF3 => self.di(bus),
+
             0xC5 => self.push(bus, Reg16::BC),
             0xE5 => self.push(bus, Reg16::HL),
             0xF5 => self.push(bus, Reg16::AF),
             
             
             0xFE => self.cp(bus, Imm8),
+            0xFF => self.rst(bus, 0x38),
 
             _    => panic!("Not implemented: 0x{:02x}, pc: 0x{:x}", self.ctx.opecode, self.regs.pc),
         }
@@ -214,6 +221,7 @@ impl Cpu {
             0x10 => self.rl(bus, Reg8::B),
             0x11 => self.rl(bus, Reg8::C),
             0x6C => self.bit(bus, 5, Reg8::H),
+            
             _    => panic!("Not implemented: {:02x}", self.ctx.opecode),
         }
     }

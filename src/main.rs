@@ -69,7 +69,7 @@ fn main() {
 
     //let time = time::Instant::now;
     //let mut elapsed = 0;
-    let is_lcd = false;
+    let is_lcd = true;
     loop {
         cpu.emulate_cycle(&mut peripherals); 
 
