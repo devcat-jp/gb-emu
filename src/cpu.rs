@@ -13,7 +13,7 @@ mod operand;
 mod instructions;
 pub mod interrupts;
 
-const CHK_OP: u8 = 0xFF;
+const CHK_OP: u8 = 0x91;
 
 
 
@@ -185,10 +185,8 @@ impl Cpu {
 
             0x7C => self.bit(bus, 7, Reg8::H),
 
-            //0xC5 => self.push(bus, Reg16::BC),
-            //0xD5 => self.push(bus, Reg16::DE),
-            //0xE5 => self.push(bus, Reg16::HL),
-            //0xF5 => self.push(bus, Reg16::AF),
+            0x91 => self.sub(bus, Reg8::C),
+
 
             0xC3 => self.jp(bus),
             

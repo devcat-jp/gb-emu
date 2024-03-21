@@ -1,6 +1,10 @@
 
 
-use std::sync::atomic::{
+//use std::sync::atomic::{
+//    AtomicU16, AtomicU8, Ordering::Relaxed      // 同期は行わない
+//};
+
+use core::sync::atomic::{
     AtomicU16, AtomicU8, Ordering::Relaxed      // 同期は行わない
 };
 
@@ -232,6 +236,28 @@ impl Cpu {
             _ => panic!(""),
         }
     }
+
+    // SUB : Aレジスタからsの値を引く
+    pub fn sub<S: Copy>(&mut self, bus: &Peripherals, src: S) 
+    where Self: IO8<S> {
+        static STEP: AtomicU8 = AtomicU8::new(0);
+        match STEP.load(Relaxed) {
+            0 => {
+                if let Some(v) = self.read8(bus, src) {
+                    self.regs.a = self.regs.a.wrapping_sub(v);
+                    STEP.store(1, Relaxed);
+                    // 応答が得られたので再度処理を行う
+                    self.sub(bus, src);
+                }
+            },
+            1 => {
+                STEP.store(1, Relaxed);
+                self.fetch(bus);
+            }
+            _ => panic!("Not Define"),
+        }
+    }
+
 
     // JR : プログラムカウンタに値を加算する
     pub fn jr(&mut self, bus: &Peripherals) {
